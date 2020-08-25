@@ -1,4 +1,3 @@
-import { Access } from './types';
 import { Author } from './interfaces/author';
 import { Editor } from './interfaces/editor';
 import { Keyword } from './interfaces/keyword';
@@ -19,7 +18,7 @@ export class Article {
     metadata?: Metadata;
     doi?: string;
     endingPage?: number;
-    access?: Access;
+    isOpenAccess?: boolean;
     publicationDate?: CustomDate;
     //public type: PublicationType;
     title?: string;
@@ -41,7 +40,7 @@ export class Article {
                 title: row.TI,
                 language: row.LA,
                 pubmedId: row.PM,
-                access: Article._accessFromCsv(row.OA),
+                isOpenAccess: Article._accessFromCsv(row.OA),
                 beginningPage: row.BP.replace(/\D/, ''),
                 endingPage: row.EP.replace(/\D/, ''),
                 doi: row.DI,
@@ -173,8 +172,8 @@ export class Article {
         return out;
     }
 
-    private static _accessFromCsv(openAccess: string | undefined): Access {
-        return openAccess.trim() == '' ? 'closed' : 'open';
+    private static _accessFromCsv(openAccess: string | undefined): boolean {
+        return !(openAccess.trim() == '');
     }
 
     private static _issueFromCsv(issue: string, isSpecialIssue: 'IS' | undefined): Issue {
@@ -188,7 +187,7 @@ export class Article {
         function unique(list: Keyword[]) {
             const seen = {} as any;
             return list.filter(function(item) {
-                return seen.hasOwnProperty(item.text.toUpperCase()) ? false : (seen[item.text.toUpperCase()] = true);
+                return Object.prototype.hasOwnProperty.call(seen, item.text.toUpperCase()) ? false : (seen[item.text.toUpperCase()] = true);
             });
         }
 

@@ -24,7 +24,7 @@ class NameParser {
         const out: Name[] = [];
 
         for (let i = 0; i < input.length; i++) {
-            let name: Name = NameParser._parse(input[i]);
+            const name: Name = NameParser._parse(input[i]);
             out.push(name);
         }
 
@@ -59,7 +59,7 @@ class NameParser {
         if (nameString == null) return {}; // Case: Entire name parsed by _extractTokens
 
         // Default
-        let out: Name = {};
+        const out: Name = {};
 
         // Account for double/triple spaces in split, and correct them after
         const tokens: string[] = nameString.split(/\s+/).map(token => token.replace(/\s{2,}/, ' '));
