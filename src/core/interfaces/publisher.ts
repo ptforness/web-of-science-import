@@ -1,5 +1,5 @@
 export interface Publisher {
-    address?: string;
-    city?: string;
-    name?: string;
+  address?: string;
+  city?: string;
+  name?: string;
 }

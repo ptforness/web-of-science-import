@@ -38,28 +38,28 @@ isSpecialIssue? (boolean)
 title
 */
 
-import { Access } from './types';
 import { Author } from './interfaces/author';
+import { CustomDate } from './interfaces/customDate';
 import { Editor } from './interfaces/editor';
+import { Keyword } from './interfaces/keyword';
+import { Metadata } from './interfaces/metadata';
 import { Publisher } from './interfaces/publisher';
 import { Series } from './interfaces/series';
-import { Metadata } from './interfaces/metadata';
-import { Keyword } from './interfaces/keyword';
-import { CustomDate } from './interfaces/customDate';
+import { Access } from './types';
 
 export interface Book {
-    access?: Access;
-    authors?: Array<Author>;
-    doi?: string;
-    editors?: Array<Editor>;
-    isbn?: string;
-    keywords?: Array<Keyword>;
-    language?: string;
-    metadata?: Metadata;
-    pageCount?: number; //EndingPage
-    publicationDate?: CustomDate;
-    publisher?: Publisher;
-    references?: Array<string>;
-    series?: Series;
-    title?: string;
+  access?: Access;
+  authors?: Array<Author>;
+  doi?: string;
+  editors?: Array<Editor>;
+  isbn?: string;
+  keywords?: Array<Keyword>;
+  language?: string;
+  metadata?: Metadata;
+  pageCount?: number; //EndingPage
+  publicationDate?: CustomDate;
+  publisher?: Publisher;
+  references?: Array<string>;
+  series?: Series;
+  title?: string;
 }

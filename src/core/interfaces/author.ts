@@ -25,9 +25,9 @@ address
 import { Name } from './name';
 
 export interface Author {
-    name?: Name;
-    email?: string;
-    orcid?: string;
-    researcherId?: string;
-    address?: string;
+  name?: Name;
+  email?: string;
+  orcid?: string;
+  researcherId?: string;
+  address?: string;
 }

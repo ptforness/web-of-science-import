@@ -1,4 +1,4 @@
-export interface  Issue {
-    number?: string;
-    isSpecial?: boolean;
+export interface Issue {
+  number?: string;
+  isSpecial?: boolean;
 }

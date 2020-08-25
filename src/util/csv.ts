@@ -1,7 +1,17 @@
 import * as fs from 'fs';
 const fsp = fs.promises;
 
-export type Encoding = "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex";
+export type Encoding =
+  | 'ascii'
+  | 'utf8'
+  | 'utf-8'
+  | 'utf16le'
+  | 'ucs2'
+  | 'ucs-2'
+  | 'base64'
+  | 'latin1'
+  | 'binary'
+  | 'hex';
 export interface Options {
   encoding: Encoding;
   delimiter: string;
@@ -11,8 +21,8 @@ export interface Options {
 const defaultOptions: Options = {
   encoding: 'utf8',
   delimiter: '\t',
-  log: false
-}
+  log: false,
+};
 
 /**
  * Reads a csv file asynchronously, returning an array of objects
@@ -88,4 +98,3 @@ function _parseIfStringified(json: any[] | string): any[] {
 function _valuesToRecord(values: any[], delimiter: string): string {
   return values.join(delimiter) + '\n';
 }
-

@@ -1,6 +1,6 @@
 {
   "name": "web-of-science-import",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "An API for importing Web of Science TSV files",
   "homepage": "https://github.com/ptforness/web-of-science-import",
   "bugs": {
@@ -8,21 +8,23 @@
     "email": "ptforness@gmail.com"
   },
   "repository": "github:ptforness/web-of-science-import",
+  "license": "MIT",
+  "author": "Paul Forness <ptforness@gmail.com>",
   "main": "lib/index.js",
   "files": [
     "lib/**/*"
   ],
   "scripts": {
-    "test": "jest --config jestconfig.json",
-    "coverage": "jest --config jestconfig.json --coverage",
     "build": "babel src --out-dir lib --extensions \".js,.ts\" --ignore \"src/**/*.test.ts\",\"src/**/*.d.ts\"",
     "build:declaration": "rm -f ./src/index.d.ts && tsc --outFile ./src/index.d.ts && cp ./src/index.d.ts ./lib/index.d.ts",
     "build:watch": "babel src --out-dir lib --extensions \".js,.ts\" --ignore \"src/**/*.test.ts\",\"src/**/*.d.ts\" --watch",
+    "coverage": "jest --config jestconfig.json --coverage",
     "docs": "typedoc",
     "format": "prettier --write \"src/**/*.ts\" \"package.json\"",
     "lint": "eslint ./src --ext .js,.ts",
     "prepare": "npm run build && npm run build:declaration",
     "prepublishOnly": "npm test && npm run lint && npm run format",
+    "test": "jest --config jestconfig.json",
     "preversion": "npm run lint && npm run format",
     "version": "git add -A src",
     "postversion": "git push && git push --tags"
@@ -41,8 +43,6 @@
       "prettier --write"
     ]
   },
-  "author": "Paul Forness <ptforness@gmail.com>",
-  "license": "MIT",
   "dependencies": {
     "@babel/runtime": "^7.11.2"
   },
