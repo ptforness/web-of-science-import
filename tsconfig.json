@@ -1,0 +1,38 @@
+{
+    "compileOnSave": true,
+    "compilerOptions": {
+        "rootDir": "src",
+        "sourceMap":true,
+        "target": "ES6",
+        "module": "AMD",
+        "declaration": true,
+        "noImplicitAny": true,
+        "removeComments": true,
+        "experimentalDecorators": true,
+        "emitDeclarationOnly": true,
+        "moduleResolution": "node",
+        "baseUrl": "./",
+        "types": [
+            "node",
+            "jest"
+        ],
+        "paths": {
+            "src/*": ["src/*"]
+        },
+    },
+    "exclude": [
+        "node_modules",
+        "src/**/*.test.ts"
+    ],
+    "typedocOptions": {
+        "mode": "commonjs",
+        "out": "docs",
+        "exclude": "**/*.test.ts",
+        "stripInternal": true,
+        "excludeExternals": true,
+        "excludeNotExported": true,
+        "excludePrivate": true,
+        "theme": "minimal",
+        "readme": "README"
+    }
+}
