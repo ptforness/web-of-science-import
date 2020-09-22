@@ -5,4 +5,6 @@ export interface Name {
   last?: string;
   suffix?: string;
   nick?: string;
+  original?: string;
+  isParsed: boolean;
 }

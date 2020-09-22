@@ -27,6 +27,7 @@
     "typedocOptions": {
         "mode": "commonjs",
         "out": "docs",
+        "include": "lib/**/*.ts",
         "exclude": "**/*.test.ts",
         "stripInternal": true,
         "excludeExternals": true,

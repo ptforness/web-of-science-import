@@ -1,6 +1,6 @@
 export interface CustomDate {
   day?: number;
-  month?: string;
+  month?: number | string;
   year?: number;
   season?: string;
 }

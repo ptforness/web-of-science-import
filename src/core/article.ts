@@ -6,7 +6,7 @@ import { Editor } from './interfaces/editor';
 import { Issue } from './interfaces/issue';
 import { Keyword } from './interfaces/keyword';
 import { Metadata } from './interfaces/metadata';
-import { Name } from './name-parser/name';
+import { Sponsor } from './interfaces/sponsor';
 import NameParser from './name-parser/nameParser';
 
 export class Article {
@@ -27,6 +27,7 @@ export class Article {
   keywords?: Keyword[];
   abstract?: string;
   pubmedId?: string;
+  sponsors?: Sponsor[];
 
   static async fromCsv(path: string): Promise<Article[]> {
     const rows: any[] = await Csv.read(path);
@@ -36,18 +37,19 @@ export class Article {
       articles.push({
         keywords: Article._keywordsFromCsv(row.DE, row.ID),
         issue: Article._issueFromCsv(row.IS, row.SI),
-        abstract: row.AB,
-        title: row.TI,
-        language: row.LA,
-        pubmedId: row.PM,
+        abstract: row.AB == '' ? undefined : row.AB,
+        title: row.TI == '' ? undefined : row.TI,
+        language: row.LA == '' ? undefined : row.LA,
+        pubmedId: row.PM == '' ? undefined : row.PM,
         isOpenAccess: Article._accessFromCsv(row.OA),
-        beginningPage: row.BP.replace(/\D/, ''),
-        endingPage: row.EP.replace(/\D/, ''),
-        doi: row.DI,
+        beginningPage: row.BP == '' ? undefined : row.BP.replace(/\D/, ''),
+        endingPage: row.EP == '' ? undefined : row.EP.replace(/\D/, ''),
+        doi: row.DI == '' ? undefined : row.DI,
         publicationDate: Article._publicationDateFromCsv(row.PD, row.PY),
         metadata: Article._metadataFromCsv(row.DA, row.SC, row.U1, row.U2, row.UT, row.WC, row.Z9),
-        authors: Article._authorsFromCsv(row.AF, row.AU, row.EM, row.OI, row.RI, row.C1),
+        authors: Article._authorsFromCsv(row.AF, row.AU, row.OI, row.RI, row.C1),
         editors: Article._editorsFromCsv(row.BE),
+        sponsors: await Article._sponsorsFromCsv(row.FU),
       });
     }
 
@@ -58,12 +60,63 @@ export class Article {
   //
   //}
 
+  public static async _sponsorsFromCsv(agencyAndGrantNumber: string): Promise<Sponsor[]> {
+    const knownAgencies: any[] = await Csv.read('./lib/core/data/agencies.tsv');
+    const out: Sponsor[] = [];
+    const awardsRegExp = /(?<=\[).+?(?=\])/;
+
+    const agencies: string[] = agencyAndGrantNumber.split('; ');
+    agencies.forEach((agency) => {
+      let newSponsor: Sponsor;
+
+      for (const knownAgency of knownAgencies) {
+        if (agency.match(knownAgency.agencyPattern)) {
+          if (newSponsor == null) newSponsor = {};
+          newSponsor.name = knownAgency.name;
+
+          const awards: RegExpMatchArray = agency.match(awardsRegExp);
+          if (awards != null && awards[0] != null) {
+            const awardMatches: RegExpMatchArray = awards[0].match(knownAgency.awardPattern);
+            if (awardMatches != null && awardMatches[0] != null) {
+              awardMatches.forEach((match) => {
+                if (newSponsor.grants == null) newSponsor.grants = [];
+                newSponsor.grants.push(match);
+              });
+            }
+          }
+
+          break;
+        }
+      }
+
+      if (newSponsor != null) out.push(newSponsor);
+    });
+
+    const seen: Map<string, Partial<Sponsor>> = new Map();
+    for (const sponsor of out) {
+      if (seen.get(sponsor.name) == null) {
+        seen.set(sponsor.name, {
+          ...sponsor,
+        });
+      } else {
+        seen.set(sponsor.name, {
+          name: sponsor.name,
+          grants: (seen.get(sponsor.name).grants || []).concat(sponsor.grants),
+        });
+      }
+    }
+    return Array.from(seen.values());
+  }
+
   private static _editorsFromCsv(fullName: string): Editor[] {
     const rawNames: string[] = fullName.split('; ');
 
     const editors: Editor[] = [];
     for (const raw of rawNames) {
-      editors.push({ name: NameParser.parseName(raw) });
+      const name = NameParser.parseName(raw);
+      if (name.isParsed) {
+        editors.push({ name });
+      }
     }
 
     return editors;
@@ -72,68 +125,68 @@ export class Article {
   private static _authorsFromCsv(
     fullName: string,
     name: string,
-    email: string,
     orcid: string,
     researcherId: string,
     address: string,
   ): Author[] {
     const rawFullNames: string[] = fullName.split('; ');
     const rawNames: string[] = name.split('; ');
-    const rawEmails: string[] = email.split('; ');
-    const rawOrcid: string[] = orcid.split('; ');
-    const rawResearcherId: string[] = researcherId.split('; ');
-    const rawAddress: string[] = address.split('; ');
+    const rawOrcids: string[] = orcid.split('; ');
+    const rawResearcherIds: string[] = researcherId.split('; ');
+    const rawAddresses: string[] = address.split('; [');
 
     const authors: Author[] = [];
-    for (let i = 0; i < rawFullNames.length; i++) {
-      let name: Name;
-      try {
-        name = NameParser.parseName(rawFullNames[i]);
-      } catch {
-        name = NameParser.parseName(rawNames[i]);
-      } finally {
-        if (name != null) authors.push({ name });
-      }
-    }
+    rawFullNames.forEach((name, idx) => {
+      authors.push({ name: NameParser.parseName(name, rawNames[idx]), addresses: [] });
+    });
 
-    if (rawEmails.length === authors.length) {
-      for (const [index, raw] of rawEmails.entries()) {
-        authors[index].email = rawEmails[index].trim();
-      }
-    }
-
-    for (const raw of rawOrcid) {
+    rawOrcids.forEach((raw) => {
       const [name, orcid] = raw.split('/');
       const parsed = NameParser.parseName(name);
-      for (const author of authors) {
-        if (author.name.first === parsed.first && author.name.last === parsed.last) {
-          author.orcid = orcid;
-          continue;
-        }
+      if (parsed.isParsed) {
+        authors.forEach((author) => {
+          if (
+            author.name.first?.toLowerCase() === parsed.first?.toLowerCase() &&
+            author.name.last?.toLowerCase() === parsed.last?.toLowerCase()
+          ) {
+            author.orcid = orcid;
+          }
+        });
       }
-    }
+    });
 
-    for (const raw of rawResearcherId) {
+    rawResearcherIds.forEach((raw) => {
       const [name, researcherId] = raw.split('/');
       const parsed = NameParser.parseName(name);
-      for (const author of authors) {
-        if (author.name.first === parsed.first && author.name.last === parsed.last) {
-          author.researcherId = researcherId;
-          continue;
-        }
+      if (parsed.isParsed) {
+        authors.forEach((author) => {
+          if (
+            author.name.first?.toLowerCase() === parsed.first?.toLowerCase() &&
+            author.name.last?.toLowerCase() === parsed.last?.toLowerCase()
+          ) {
+            author.researcherId = researcherId;
+          }
+        });
       }
-    }
+    });
 
-    for (const raw of rawAddress) {
-      const [name, address] = raw.split('] ');
-      const parsed = NameParser.parseName(name);
-      for (const author of authors) {
-        if (author.name.first === parsed.first && author.name.last === parsed.last) {
-          author.address = address;
-          continue;
+    rawAddresses.forEach((raw) => {
+      const [nameList, address] = raw.split('] ');
+      const names: string[] = nameList.replace('[', '').split('; ');
+      names.forEach((name) => {
+        const parsed = NameParser.parseName(name);
+        if (parsed.isParsed) {
+          authors.forEach((author) => {
+            if (
+              author.name.first?.toLowerCase() === parsed.first?.toLowerCase() &&
+              author.name.last?.toLowerCase() === parsed.last?.toLowerCase()
+            ) {
+              author.addresses.push(address);
+            }
+          });
         }
-      }
-    }
+      });
+    });
 
     return authors;
   }
@@ -149,13 +202,52 @@ export class Article {
   ): Metadata {
     return {
       reportDate: reportDate && new Date(reportDate),
-      researchAreas,
+      researchAreas: researchAreas && researchAreas.split('; '),
       usageCountLast180Days: usageCountLast180Days && Number(usageCountLast180Days),
       usageCountTotal: usageCountTotal && Number(usageCountTotal),
       accessionNumber: accessionNumber && accessionNumber.split(':')[1],
-      webOfScienceCategories,
+      webOfScienceCategories: webOfScienceCategories && webOfScienceCategories.split('; '),
       timesCitedTotal: timesCitedTotal && Number(timesCitedTotal),
     };
+  }
+
+  private static _normalizeMonth(monthString: string): number | string | undefined {
+    const january = /(?:JANUARY)|(?:JAN\.?)/i;
+    const february = /(?:FEBUARY)|(?:FEB\.?)/i;
+    const march = /(?:MARCH)|(?:MAR\.?)/i;
+    const april = /(?:APRIL)|(?:APR\.?)/i;
+    const may = /(?:MAY\.?)/i;
+    const june = /(?:JUNE)|(?:JUN\.?)/i;
+    const july = /(?:JULY)|(?:JUL\.?)/i;
+    const august = /(?:AUGUST)|(?:AUG\.?)/i;
+    const september = /(?:SEPTEMBER)|(?:SEP\.?)/i;
+    const october = /(?:OCTOBER)|(?:OCT\.?)/i;
+    const november = /(?:NOVEMBER)|(?:NOV\.?)/i;
+    const december = /(?:DECEMBER)|(?:DEC\.?)/i;
+    const months: RegExp[] = [
+      january,
+      february,
+      march,
+      april,
+      may,
+      june,
+      july,
+      august,
+      september,
+      october,
+      november,
+      december,
+    ];
+
+    for (const [index, month] of months.entries()) {
+      if (monthString.match(month)) return index + 1;
+    }
+
+    const monthrangeRegExp = /(?:JAN\.?-FEB\.?)|(?:FEB\.?-MAR\.?)|(?:MAR\.?-APR\.?)|(?:APR\.?-MAY\.?)|(?:MAY\.?-JUN\.?)|(?:JUN\.?-JUL\.?)|(?:JUL\.?-AUG\.?)|(?:AUG\.?-SEP\.?)|(?:SEP\.?-OCT\.?)|(?:OCT\.?-NOV\.?)|(?:NOV\.?-DEC\.?)|(?:DEC\.?-JAN\.?)/i;
+    const monthRangeMatches = monthString.match(monthrangeRegExp);
+    if (monthRangeMatches && monthRangeMatches.length > 0) return monthRangeMatches[0];
+
+    return undefined;
   }
 
   private static _publicationDateFromCsv(
@@ -163,29 +255,32 @@ export class Article {
     publicationYear: string | undefined,
   ): CustomDate {
     const seasonRegExp = /(?:SPR(?:-SUM)?)|(?:SUM(?:-FAL)?)|(?:FAL(?:-WIN)?)|(?:WIN(?:-SPR)?)/;
-    const monthRegExp = /(?:JAN\.?(?:-FEB\.?)?)|(?:FEB\.?(?:-MAR\.?)?)|(?:MAR\.?(?:-APR\.?)?)|(?:APR\.?(?:-MAY\.?)?)|(?:MAY\.?(?:-JUN\.?)?)|(?:JUN\.?(?:-JUL\.?)?)|(?:JUL\.?(?:-AUG\.?)?)|(?:AUG\.?(?:-SEP\.?)?)|(?:SEP\.?(?:-OCT\.?)?)|(?:OCT\.?(?:-NOV\.?)?)|(?:NOV\.?(?:-DEC\.?)?)|(?:DEC\.?(?:-JAN\.?)?)/;
     const dayRegExp = /(?:(?:[1-2][0-9])|(?:3[0-1])|(?:0?[1-9]))/;
     const yearRegExp = /(?:\d{4}|\d{2})/;
 
-    const out = {} as CustomDate;
+    let out: CustomDate;
     const seasonMatches = publicationDate.match(seasonRegExp);
     if (seasonMatches && seasonMatches.length > 0) {
+      if (out == null) out = {};
       out.season = seasonMatches[0];
     }
 
-    const monthMatches = publicationDate.match(monthRegExp);
-    if (monthMatches && monthMatches.length > 0) {
-      out.month = monthMatches[0];
+    const month: number | string | undefined = this._normalizeMonth(publicationDate);
+    if (month != null) {
+      if (out == null) out = {};
+      out.month = month;
     }
 
     const dayMatches = publicationDate.match(dayRegExp);
     if (dayMatches && dayMatches.length > 0) {
+      if (out == null) out = {};
       out.day = Number(dayMatches[0]);
     }
 
     const yearMatches = publicationYear.match(yearRegExp);
     if (yearMatches && yearMatches.length > 0) {
-      out.day = Number(yearMatches[0]);
+      if (out == null) out = {};
+      out.year = Number(yearMatches[0]);
     }
     return out;
   }
@@ -196,12 +291,12 @@ export class Article {
 
   private static _issueFromCsv(issue: string, isSpecialIssue: 'IS' | undefined): Issue {
     return {
-      number: issue,
+      number: issue === '' ? undefined : issue,
       isSpecial: isSpecialIssue == 'IS' ? true : false,
     };
   }
 
-  private static _keywordsFromCsv(authorKeywords: string[], keywordsPlus: string[]): Keyword[] {
+  private static _keywordsFromCsv(authorKeywords: string, keywordsPlus: string): Keyword[] {
     function unique(list: Keyword[]) {
       const seen = {} as any;
       return list.filter(function (item) {
@@ -212,13 +307,15 @@ export class Article {
     }
 
     const keywords: Keyword[] = [];
-    for (const keyword of authorKeywords) {
+    for (const keyword of authorKeywords.split('; ')) {
+      if (keyword == null || keyword == '') continue;
       keywords.push({
         text: keyword,
         type: 'author',
       });
     }
-    for (const keyword of keywordsPlus) {
+    for (const keyword of keywordsPlus.split('; ')) {
+      if (keyword == null || keyword == '') continue;
       keywords.push({
         text: keyword,
         type: 'webOfScience',
@@ -226,4 +323,16 @@ export class Article {
     }
     return unique(keywords);
   }
+}
+
+function zip<T>(arr1: T[], arr2: T[]): [T, T][] {
+  if (arr1 == null) throw Error("Argument 'arr1' is undefined.");
+  if (arr2 == null) throw Error("Argument 'arr2' is undefined.");
+  if (arr1.length != arr2.length) throw Error('Array length mismatch.');
+  if (arr1.length === 0) return undefined;
+  const out: [T, T][] = [];
+  arr1.forEach((item, idx) => {
+    out.push([item, arr2[idx]]);
+  });
+  return out;
 }

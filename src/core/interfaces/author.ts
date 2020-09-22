@@ -29,5 +29,5 @@ export interface Author {
   email?: string;
   orcid?: string;
   researcherId?: string;
-  address?: string;
+  addresses?: string[];
 }

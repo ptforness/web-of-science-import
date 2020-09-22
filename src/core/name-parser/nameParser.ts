@@ -7,8 +7,15 @@ class NameParser {
    * @param {string} input String representation of the name to parse
    * @returns {Name} Name instance
    */
-  public static parseName(input: string): Name {
-    return NameParser._parse(input);
+  public static parseName(input: string, ...fallbacks: string[]): Name {
+    try {
+      return NameParser._parse(input);
+    } catch (error) {
+      fallbacks.forEach((f) => {
+        return NameParser._parse(f);
+      });
+      return { original: input, isParsed: false } as Name;
+    }
   }
 
   /**
@@ -36,13 +43,14 @@ class NameParser {
    * @access private
    * @static
    * @method
-   * @param {string} nameString String representation of the name to parse
+   * @param {string} input String representation of the name to parse
    * @returns {Name} Name instance
    */
-  private static _parse(nameString: string): Name {
-    let out: Name;
-    [out, nameString] = NameParser._extractTokens(nameString);
-    Object.assign(out, NameParser._parseName(nameString));
+  private static _parse(input: string): Name {
+    if (input == null || input == '') throw Error;
+
+    const [out, rest]: [Name, string] = NameParser._extractTokens(input);
+    Object.assign(out, NameParser._parseName(rest), { original: input, isParsed: true });
     return out;
   }
 
@@ -54,11 +62,11 @@ class NameParser {
    * @param nameString Input string to be parsed
    * @returns {Name} Name instance, possibly containing the following properties: first, middle, title
    */
-  private static _parseName(nameString: string): Name {
-    if (nameString == null) return {}; // Case: Entire name parsed by _extractTokens
+  private static _parseName(nameString: string): Name | null {
+    if (nameString == null) return null; // Case: Entire name parsed by _extractTokens
 
     // Default
-    const out: Name = {};
+    const out: Name = { isParsed: false };
 
     // Account for double/triple spaces in split, and correct them after
     const tokens: string[] = nameString.split(/\s+/).map((token) => token.replace(/\s{2,}/, ' '));
@@ -71,8 +79,12 @@ class NameParser {
         if (Pattern.hyphenated.test(tokens[0]) || Pattern.initial.test(tokens[1])) {
           out.first = tokens[0]; // J | J. | John | John-Deer
           out.middle = tokens[1]; // W | W. | Wilson (if first == John-Deer)
-        } else {
+        } else if (Pattern.initial.test(tokens[0])) {
           out.first = `${tokens[0]} ${tokens[1]}`; // J Deer | J. Deer | John Deer
+        } else {
+          // NOTE: Needs Test cases
+          out.first = tokens[0]; // John
+          out.middle = tokens[1]; // Wilson
         }
         break;
       case 3:
@@ -87,6 +99,8 @@ class NameParser {
         }
         break;
       default:
+        //out.first = tokens[0];
+        //break;
         throw new Error(`InvalidNameException: ${nameString}`);
     }
     return out;
@@ -102,45 +116,41 @@ class NameParser {
    * followed by the unparsed portion of the input string
    */
   private static _extractTokens(nameString: string): [Name, string] {
-    const out: Name = {};
+    const out: Name = { isParsed: false };
     const tokens: string[] = nameString.split(',');
     let rest: string;
+    let restToken: number;
 
     switch (tokens.length) {
       case 3: // Default: Nick, Last, and Suffix
+        restToken = 1;
         out.last = tokens[0].trim();
-        [out.nick, tokens[1]] = NameParser._extract(tokens[1], Pattern.nick);
-        out.nick = NameParser._clean(out.nick);
         out.suffix = tokens[2].trim();
-        rest = tokens[1].trim();
         break;
       case 2:
         if (tokens[0].match(Pattern.doubleLastName)) {
           // Case: Double last names (either/both can be hyphenated)
+          restToken = 1;
           out.last = tokens[0].trim();
-          [out.nick, tokens[1]] = NameParser._extract(tokens[1], Pattern.nick);
-          out.nick = NameParser._clean(out.nick);
-          rest = tokens[1].trim();
         } else if (tokens[0].includes(' ')) {
           // Cases: (FI | FI.) (FI | FI. | First) ("Nick" | (Nick))?, Suffix
+          restToken = 0;
           out.suffix = tokens[1].trim();
-          [out.nick, tokens[0]] = NameParser._extract(tokens[0], Pattern.nick);
-          out.nick = NameParser._clean(out.nick);
-          rest = tokens[0].trim();
         } else {
           // Default: Nick and Last
+          restToken = 1;
           out.last = tokens[0].trim();
-          [out.nick, tokens[1]] = NameParser._extract(tokens[1], Pattern.nick);
-          out.nick = NameParser._clean(out.nick);
-          rest = tokens[1].trim();
         }
         break;
       case 1: // Default: Nick
-        [out.nick, tokens[0]] = NameParser._extract(tokens[0], Pattern.nick);
-        out.nick = NameParser._clean(out.nick);
+        restToken = 0;
         rest = tokens[0].trim();
         break;
     }
+
+    [out.nick, tokens[restToken]] = NameParser._extract(tokens[restToken], Pattern.nick);
+    out.nick = NameParser._clean(out.nick);
+    rest = tokens[restToken].trim();
 
     return [out, rest];
   }
